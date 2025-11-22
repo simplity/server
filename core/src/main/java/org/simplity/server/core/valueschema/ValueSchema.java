@@ -1,0 +1,147 @@
+// SPDX-License-Identifier: MIT
+package org.simplity.server.core.valueschema;
+
+/**
+ * class that restricts possible valid values that a field can have. Used for
+ * parsing and validating a field value coming from a non-reliable source
+ *
+ * @author simplity.org
+ *
+ */
+public abstract class ValueSchema {
+	protected String name;
+	protected String messageId;
+	protected int minLength;
+	protected int maxLength;
+	protected ValueType valueType;
+
+	/**
+	 * @return unique error message id that has the actual error message to be used
+	 *         if a value fails validation
+	 */
+	public String getMessageId() {
+		return this.messageId;
+	}
+
+	/**
+	 * @return the valueType
+	 */
+	public ValueType getValueType() {
+		return this.valueType;
+	}
+
+	/**
+	 * @param value non-null. generic object to be to be parsed and validated.
+	 * @return null if the validation fails. object of the right type for the field.
+	 */
+
+	public abstract Object parse(Object value);
+
+	/**
+	 * @param value non-null. value to be parsed and validated into the right type
+	 *              after validation
+	 * @return null if the validation fails. object of the right type for the field.
+	 */
+	public abstract Object parse(String value);
+
+	/**
+	 * @param value non-null. String with comma separated values
+	 * @return null if the validation fails.
+	 */
+	public ParsedList parseList(String value) {
+		String[] texts = value.split(",");
+		Object[] vals = new Object[texts.length];
+
+		// we expect this to be a small array, and hence no optimization
+		String textValue = null;
+		for (int i = 0; i < texts.length; i++) {
+			Object val = this.parse(texts[i]);
+			if (val == null) {
+				return null;
+			}
+			vals[i] = val;
+			if (textValue == null) {
+				textValue = val.toString();
+			} else {
+				textValue += ',' + val.toString();
+			}
+		}
+		return new ParsedList(textValue, vals);
+	}
+
+	/**
+	 * @return the name
+	 */
+	public String getName() {
+		return this.name;
+	}
+
+	/**
+	 * immutable data structure to manage value-lists. Has the text-version as well
+	 * as an array of the value of the right type
+	 *
+	 * @author simplity.org
+	 *
+	 */
+	public class ParsedList {
+		/**
+		 * text that is a has the comma separated list of values
+		 */
+		public final String textValue;
+
+		/**
+		 * array that has the right-types values
+		 */
+		public final Object[] valueList;
+
+		/**
+		 * immutable, and hence the values for all the members are to be supplied on
+		 * instantiation
+		 *
+		 * @param textValue non-null
+		 * @param valueList non-null
+		 */
+		public ParsedList(String textValue, Object[] valueList) {
+			this.textValue = textValue;
+			this.valueList = valueList;
+		}
+	}
+
+	private static final ValueSchema BOOL_SCHEMA = new BooleanSchema("_defaultTextSchema", null);
+	private static final ValueSchema DATE_SCHEMA = new DateSchema("_defaultDateSchema", null, Integer.MAX_VALUE,
+			Integer.MAX_VALUE);
+	private static final ValueSchema DECIMAL_SCHEMA = new DecimalSchema("_defaultDecimalSchema", null, Long.MIN_VALUE,
+			Long.MAX_VALUE, 100);
+	private static final ValueSchema INTEGER_SCHEMA = new IntegerSchema("_defaultIntegerSchema", null, Long.MIN_VALUE,
+			Long.MAX_VALUE);
+	private static final ValueSchema TEXT_SCHEMA = new TextSchema("_defaultTextSchema", null, 0, Integer.MAX_VALUE,
+			null);
+	private static final ValueSchema STAMP_SCHEMA = new TimestampSchema("_defaultTimestampSchema", null);
+
+	/**
+	 * get a plain vanilla value schema that validates just the value type, and
+	 * nothing else. Useful for internal utility classes
+	 *
+	 * @param valueType
+	 * @return a schema that just validates the value type.
+	 */
+	public static ValueSchema getDefaultSchema(ValueType valueType) {
+		switch (valueType) {
+		case Boolean:
+			return BOOL_SCHEMA;
+
+		case Date:
+			return DATE_SCHEMA;
+		case Decimal:
+			return DECIMAL_SCHEMA;
+		case Integer:
+			return INTEGER_SCHEMA;
+		case Text:
+			return TEXT_SCHEMA;
+		case Timestamp:
+			return STAMP_SCHEMA;
+		default:
+			return TEXT_SCHEMA;
+		}
+	}
+}

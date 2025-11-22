@@ -1,0 +1,359 @@
+// SPDX-License-Identifier: MIT
+package org.simplity.server.core.data;
+
+import java.sql.SQLException;
+
+import org.simplity.server.core.Conventions;
+import org.simplity.server.core.Message;
+import org.simplity.server.core.db.ReadWriteHandle;
+import org.simplity.server.core.db.ReadonlyHandle;
+import org.simplity.server.core.service.InputArray;
+import org.simplity.server.core.service.InputData;
+import org.simplity.server.core.service.OutputData;
+import org.simplity.server.core.service.ServiceContext;
+import org.simplity.server.core.valueschema.ValueType;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+/**
+ * represents meta data for a linked form
+ *
+ * @author simplity.org
+ *
+ */
+public class ChildMetaData {
+	private static final Logger logger = LoggerFactory.getLogger(ChildMetaData.class);
+	/**
+	 * non-null unique across all fields of the form
+	 */
+	private final String childName;
+
+	/**
+	 * name of the child form being linked
+	 */
+	private final String childFormName;
+
+	/**
+	 * if this is tabular, min rows expected from client
+	 */
+	private final int minRows;
+	/**
+	 * if this is tabular, max rows expected from client.
+	 */
+	private final int maxRows;
+	/**
+	 * field names from the parent form that are used for linking
+	 */
+	private final String[] parentLinkNames;
+	/**
+	 * field names from the child form that form the parent-key for the child form
+	 */
+	private final String[] childLinkNames;
+	/**
+	 * in case min/max rows violated, what is the error message to be used to report
+	 * this problem
+	 */
+	@SuppressWarnings("unused")
+	private final String errorMessageId;
+
+	/**
+	 * is the link meant for an array of data or 1-to-1?
+	 */
+	private final boolean isTable;
+	/*
+	 * fields that are final but created at init()
+	 */
+
+	/**
+	 * true only if meta data exists, and the two records are db records
+	 */
+	private boolean isDbLink;
+	/**
+	 * in case the records are to be linked, then we need the where clause where the
+	 * column names come from the linked record, while the values for them come from
+	 * the parent record e.g. childCol1=? and childCll2=?
+	 */
+	private String linkWhereClause;
+
+	/**
+	 * has the details to set params values for a prepared statement from a parent
+	 * data row
+	 */
+	private FieldMetaData[] linkWhereParams;
+	/**
+	 * in case the linked record is to be used for deleting children
+	 */
+	private String deleteSql;
+
+	/**
+	 * how do we link the parent and the child/linked record?
+	 */
+	private int[] parentIndexes;
+	private int[] childIndexes;
+
+	/**
+	 * used by generated code, and hence we are ok with large number of parameters
+	 *
+	 * @param childName       this is different from the child form name. childName
+	 *                        has to be unique across all field names used by the
+	 *                        parent. It is the name used in this context of the
+	 *                        parent-child relationship
+	 * @param childFormName
+	 * @param minRows
+	 * @param maxRows
+	 * @param errorMessageId
+	 * @param parentLinkNames
+	 * @param childLinkNames
+	 * @param isTable
+	 */
+	public ChildMetaData(final String childName, final String childFormName, final int minRows, final int maxRows,
+			final String errorMessageId, final String[] parentLinkNames, final String[] childLinkNames,
+			final boolean isTable) {
+		this.childName = childName;
+		this.childFormName = childFormName;
+		this.minRows = minRows;
+		this.maxRows = maxRows;
+		this.parentLinkNames = parentLinkNames;
+		this.childLinkNames = childLinkNames;
+		this.errorMessageId = errorMessageId;
+		this.isTable = isTable;
+	}
+
+	boolean isTabular() {
+		return this.isTable;
+	}
+
+	/**
+	 * called by parent form/record if link-fields are specified. Note that the
+	 * forms must be based on DbRecord for linking them
+	 *
+	 * @param parentRec
+	 *
+	 * @param childREc
+	 */
+	void init(final Record parentRec, final Record childRec) {
+		if (this.parentLinkNames == null || this.childLinkNames == null) {
+			logger.info("Linked form has no deign-time link parameters. No auto operations possible..");
+			return;
+		}
+		if (parentRec instanceof DbRecord == false || childRec instanceof DbRecord == false) {
+			logger.warn("Linked form defined for non-db record. No auto operations possible..");
+			return;
+		}
+
+		final DbRecord parentRecord = (DbRecord) parentRec;
+		final DbRecord childRecord = (DbRecord) childRec;
+
+		final StringBuilder sbf = new StringBuilder(" WHERE ");
+		final int nbr = this.parentLinkNames.length;
+		this.parentIndexes = new int[nbr];
+		this.childIndexes = new int[nbr];
+		this.linkWhereParams = new FieldMetaData[nbr];
+
+		for (int i = 0; i < nbr; i++) {
+			final DbField parentField = parentRecord.fetchField(this.parentLinkNames[i]);
+			/*
+			 * child field name is not verified during generation... we may get run-time
+			 * exception
+			 */
+			final DbField childField = childRecord.fetchField(this.childLinkNames[i]);
+			if (childField == null) {
+				throw new RuntimeException("Field " + this.childLinkNames[i]
+						+ " is defined as childLinkName, but is not defined as a field in the linked form "
+						+ this.childFormName);
+			}
+			this.parentIndexes[i] = parentField.getIndex();
+			this.childIndexes[i] = childField.getIndex();
+			if (i != 0) {
+				sbf.append(" AND ");
+			}
+			sbf.append(childField.getColumnName()).append("=?");
+			this.linkWhereParams[i] = new FieldMetaData(parentField);
+		}
+
+		this.linkWhereClause = sbf.toString();
+		this.deleteSql = "delete from " + childRecord.dba.getNameInDb() + this.linkWhereClause;
+		this.isDbLink = true;
+	}
+
+	private void noDb() {
+		logger.error("Link is not designed for db operation on form {}. Database operation not done",
+				this.childFormName);
+	}
+
+	/**
+	 * read rows from the child-table for the keys in the parent record. the rows
+	 * are directly written to the output stream to avoid repeated copying of data
+	 *
+	 * @param parentRec
+	 * @param form
+	 * @param outData
+	 * @param handle
+	 * @return true if read was ok. false in in case of any validation error
+	 * @throws SQLException
+	 */
+	public boolean read(final DbRecord parentRec, final Form<?> form, final OutputData outData,
+			final ReadonlyHandle handle) throws SQLException {
+		if (!this.isDbLink) {
+			this.noDb();
+			return false;
+		}
+
+		/**
+		 * Design Note: May be a case of early optimization, but we have designed this
+		 * routine to write to the output stream as and when rows are available, rather
+		 * than accumulating them in a collection and using simple APIs to write it out
+		 */
+
+		final ValuesAndTypes vt = this.getWhereValues(parentRec);
+
+		final DbRecord thisRecord = (DbRecord) form.record;
+		outData.addName(this.childName);
+		final String[] names = thisRecord.fetchFieldNames();
+		final ValueType[] outputTypes = thisRecord.fetchValueTypes();
+		if (this.isTable) {
+			outData.beginArray();
+			handle.readWithRowProcessor(this.linkWhereClause, vt.values, vt.types, outputTypes, row -> {
+				outData.beginObject();
+				outData.addValues(names, row);
+				form.readChildForms(row, outData, handle);
+				outData.endObject();
+				return true;
+			});
+			outData.endArray();
+			return true;
+		}
+
+		outData.beginObject();
+		final Object[] row = new Object[outputTypes.length];
+		final boolean ok = handle.read(this.linkWhereClause, vt.values, vt.types, outputTypes, row);
+		if (ok) {
+			outData.addValues(names, row);
+		}
+
+		outData.endObject();
+		return true;
+	}
+
+	private ValuesAndTypes getWhereValues(final Record parentRec) {
+		final int nbr = this.parentIndexes.length;
+		final Object[] values = new Object[nbr];
+		final ValueType[] types = new ValueType[nbr];
+		final Field[] fields = parentRec.fetchFields();
+		for (int i = 0; i < nbr; i++) {
+			int idx = this.parentIndexes[i];
+			values[i] = parentRec.fetchValue(idx);
+			types[i] = fields[idx].getValueType();
+		}
+		return new ValuesAndTypes(values, types);
+	}
+
+	private void copyParentKeys(final Record parentRec, final Record thisRecord) {
+		for (int i = 0; i < this.childIndexes.length; i++) {
+			thisRecord.assignValue(this.childIndexes[i], parentRec.fetchValue(this.parentIndexes[i]));
+		}
+	}
+
+	/**
+	 * @param parentRec
+	 * @param inputObject
+	 * @param form
+	 * @param handle
+	 * @param ctx
+	 * @return true if insert operation is successful. false otherwise, in which
+	 *         case, the transaction is to be rolled back;
+	 * @throws SQLException
+	 */
+	public boolean save(final DbRecord parentRec, final Form<?> form, final InputData inputObject,
+			final ReadWriteHandle handle, final ServiceContext ctx) throws SQLException {
+		if (!this.isDbLink) {
+			this.noDb();
+			return false;
+		}
+
+		final DbRecord thisRecord = (DbRecord) form.record;
+		if (this.isTable) {
+			final InputArray arr = inputObject.getArray(this.childName);
+			if (arr == null) {
+				if (this.minRows == 0) {
+					logger.info("Input not received, but it is optional. No data saved for linked form.");
+					return true;
+				}
+				ctx.addMessage(Message.newFieldError(this.childName, Conventions.MessageId.VALUE_REQUIRED, ""));
+				return false;
+			}
+
+			final int nbr = arr.length();
+			if (nbr < this.minRows || (this.maxRows > 0 && nbr > this.maxRows)) {
+				ctx.addMessage(Message.newFieldError(this.childName,
+						"a min of " + this.minRows + " and a max of " + this.maxRows + " rows expected", ""));
+				return false;
+			}
+
+			InputData[] childRecs = arr.toDataArray();
+			for (int idx = 0; idx < childRecs.length; idx++) {
+				if (!thisRecord.parse(childRecs[idx], true, ctx, this.childFormName, idx)) {
+					return false;
+				}
+				this.copyParentKeys(parentRec, thisRecord);
+				thisRecord.saveOrFail(handle);
+			}
+
+			return true;
+		}
+
+		final InputData obj = inputObject.getData(this.childName);
+		if (obj == null) {
+			if (this.minRows > 0) {
+				ctx.addMessage(Message.newFieldError(this.childName, Conventions.MessageId.VALUE_REQUIRED, ""));
+				return false;
+			}
+			logger.info("Input not received, but it is optional. No data saved for linked form.");
+			return true;
+		}
+
+		if (!thisRecord.parse(obj, true, ctx, this.childName, 0)) {
+			logger.error("INput data had errors for linked form {}", this.childName);
+			return false;
+		}
+
+		this.copyParentKeys(parentRec, thisRecord);
+		thisRecord.saveOrFail(handle);
+		return true;
+	}
+
+	/**
+	 * @param parentRec
+	 * @param form
+	 * @param handle
+	 * @return true if all OK.
+	 * @throws SQLException
+	 */
+	public boolean delete(final ReadWriteHandle handle, final DbRecord parentRec, final Form<?> form)
+			throws SQLException {
+		if (!this.isDbLink) {
+			this.noDb();
+			return false;
+		}
+
+		ValuesAndTypes vt = this.getWhereValues(parentRec);
+		handle.write(this.deleteSql, vt.values, vt.types);
+		/*
+		 * 0 delete also is okay
+		 */
+		return true;
+	}
+
+	/**
+	 * local data-structure for passing data between methods
+	 */
+	class ValuesAndTypes {
+		final Object[] values;
+		final ValueType[] types;
+
+		ValuesAndTypes(final Object[] values, final ValueType[] types) {
+			this.values = values;
+			this.types = types;
+		}
+	}
+}

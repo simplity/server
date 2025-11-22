@@ -1,0 +1,257 @@
+// SPDX-License-Identifier: MIT
+package org.simplity.server.core.service;
+
+import java.io.Reader;
+import java.io.Writer;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import org.simplity.server.core.ApplicationError;
+import org.simplity.server.core.Conventions;
+import org.simplity.server.core.DefaultUserContext;
+import org.simplity.server.core.Message;
+import org.simplity.server.core.MessageType;
+import org.simplity.server.core.app.App;
+import org.simplity.server.core.app.AppManager;
+import org.simplity.server.core.data.RecordOverride;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+/**
+ * Simple implementation of service context. Application can use this, extend it
+ * ignore it!!
+ *
+ * @author simplity.org
+ *
+ */
+public class DefaultServiceContext implements ServiceContext {
+	protected static Logger logger = LoggerFactory.getLogger(DefaultServiceContext.class);
+
+	protected final OutputData outData;
+	protected final DefaultUserContext currentUtx;
+	protected final Object userId;
+	protected final List<Message> messages = new ArrayList<>();
+
+	protected int nbrErrors = 0;
+	protected DefaultUserContext newUtx;
+	protected boolean responseSet;
+	protected boolean resetSession;
+	/*
+	 * created on need-basis because we expect this to be used sparingly..
+	 */
+	protected Map<String, Object> objects;
+
+	/**
+	 *
+	 * @param session can be null
+	 * @param outData non-null
+	 */
+	@SuppressWarnings("boxing")
+	public DefaultServiceContext(final DefaultUserContext session, final OutputData outData) {
+		this.outData = outData;
+		this.currentUtx = session;
+		/*
+		 * apps may use an internal id instead. And that id can be part of the session
+		 */
+		if (session == null) {
+			this.userId = null;
+		} else {
+			this.userId = session.getUserId();
+		}
+	}
+
+	@Override
+	public boolean hasUserContext() {
+		return this.currentUtx != null;
+	}
+
+	@Override
+	public Object getUserId() {
+		this.checkCtx();
+		return this.userId;
+	}
+
+	private void checkCtx() {
+		if (this.currentUtx == null) {
+			throw new ApplicationError(
+					"Service Design Error: Service is meant for guests, but its functionality requires user context. For example, it may be creating/updating a record that use createdBy/modifiedBy");
+		}
+	}
+
+	@Override
+	public OutputData getOutputData() {
+		return this.outData;
+	}
+
+	@Override
+	public boolean allOk() {
+		return this.nbrErrors == 0;
+	}
+
+	@Override
+	public void addMessage(final Message message) {
+		if (message == null) {
+			return;
+		}
+		if (message.messageType == MessageType.Error) {
+			this.nbrErrors++;
+		}
+		this.messages.add(message);
+	}
+
+	@Override
+	public Message[] getMessages() {
+		return this.messages.toArray(new Message[0]);
+	}
+
+	@Override
+	public void addMessages(final Iterable<Message> msgs) {
+		for (final Message msg : msgs) {
+			this.addMessage(msg);
+		}
+	}
+
+	@Override
+	public Object getTenantId() {
+		if (this.currentUtx == null) {
+			return null;
+		}
+		return this.currentUtx.getTenantId();
+	}
+
+	@Override
+	public void setValue(final String key, final Object value) {
+		if (this.objects == null) {
+			this.objects = new HashMap<>();
+		}
+		this.objects.put(key, value);
+	}
+
+	@Override
+	public Object getValue(final String key) {
+		if (this.objects == null) {
+			return null;
+		}
+		return this.objects.get(key);
+	}
+
+	@Override
+	public int getNbrErrors() {
+		return this.nbrErrors;
+	}
+
+	@Override
+	public void setAsResponse(final String memberName, final String[] columnNames, final Iterable<Object[]> values) {
+		if (this.responseSet) {
+			throw new ApplicationError(
+					"Cannot set fields  as response. A response is already set or the serializer is already in use.");
+		}
+		// this.outData.beginObject();
+		this.outData.addArray(memberName, columnNames, values);
+		// this.outData.endObject();
+		this.responseSet = true;
+	}
+
+	@Override
+	public void setAsResponse(final String memberName, final String[] columnNames, final Object[][] values) {
+		this.setAsResponse(memberName, columnNames, Arrays.asList(values));
+	}
+
+	@Override
+	public void setAsResponse(final String[] names, final Object[] values) {
+		if (this.responseSet) {
+			throw new ApplicationError(
+					"Cannot set fields  as response because some data is already written to the output. Review your design for outputting the right data.");
+		}
+		// this.outData.beginObject();
+		this.outData.addValues(names, values);
+		// this.outData.endObject();
+		this.responseSet = true;
+	}
+
+	@Override
+	public DefaultUserContext getCurrentUserContext() {
+		this.checkCtx();
+		return this.currentUtx;
+	}
+
+	@Override
+	public DefaultUserContext getNewUserContext() {
+		return this.newUtx;
+	}
+
+	@Override
+	public void setNewUserContext(final DefaultUserContext utx) {
+		this.newUtx = utx;
+	}
+
+	@Override
+	public String getRecordOverrideId(final String recordName) {
+		if (this.currentUtx == null) {
+			return null;
+		}
+		return this.currentUtx.getRecordOverrideId(recordName);
+	}
+
+	@Override
+	public RecordOverride getRecordOverride(final String recordName) {
+		if (this.currentUtx == null) {
+			return null;
+		}
+		return this.currentUtx.getRecordOverride(recordName);
+	}
+
+	@Override
+	public String getFormOverrideId(final String formName) {
+		if (this.currentUtx == null) {
+			return null;
+		}
+		return this.currentUtx.getFormOverrideId(formName);
+	}
+
+	@Override
+	public boolean toResetUserContext() {
+		return this.resetSession;
+	}
+
+	@Override
+	public void markUserContextForReset() {
+		this.resetSession = true;
+	}
+
+	@Override
+	public void persist(Writer writer) {
+		// TODO Auto-generated method stub
+
+	}
+
+	@Override
+	public boolean load(Reader reader) {
+		// TODO Auto-generated method stub
+		return false;
+	}
+
+	@Override
+	public String getRequestOrigin() {
+		return (String) this.getValue(Conventions.Http.CLIENT_IP_FIELD_NAME);
+	}
+
+	@Override
+	public String getSessionId() {
+		return (String) this.getValue(Conventions.Http.SESSION_ID_FIELD_NAME);
+	}
+
+	@Override
+	public void addMessages(Message[] msgs) {
+		this.addMessages(Arrays.asList(msgs));
+
+	}
+
+	@Override
+	public App getApp() {
+		return AppManager.getApp();
+	}
+}
