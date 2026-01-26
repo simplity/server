@@ -2,7 +2,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>org.simplity.server</groupId>
-    <artifactId>server</artifactId>
+    <artifactId>simplity-server</artifactId>
     <version>0.0.1-SNAPSHOT</version>
     <packaging>pom</packaging>
 
@@ -29,6 +29,11 @@
     </properties>
     <dependencyManagement>
         <dependencies>
+            <dependency>
+              <groupId>org.mindrot</groupId>
+              <artifactId>jbcrypt</artifactId>
+              <version>0.4</version>
+            </dependency>
             <dependency>
                 <groupId>jakarta.servlet</groupId>
                 <artifactId>jakarta.servlet-api</artifactId>
@@ -100,8 +105,8 @@
     </build>
 
     <modules>
-        <module>core</module>
-        <module>gen</module>
-        <module>http</module>
+        <module>simplity-core</module>
+        <module>simplity-gen</module>
+        <module>simplity-http</module>
     </modules>
 </project>
