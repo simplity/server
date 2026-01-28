@@ -27,7 +27,7 @@ class Field implements Cloneable {
 	String fieldType = "optionalData";
 	String nameInDb;
 	boolean isList;
-	String valueType;
+	// String valueType;
 	String valueSchema;
 	String messageId;
 	String defaultValue;
@@ -52,33 +52,23 @@ class Field implements Cloneable {
 	ValueType valueTypeEnum;
 
 	public Field() {
-		super();
 
 	}
 
 	public void init(final int idx, Map<String, ValueSchema> schemas) {
 		this.index = idx;
-		try {
-			final String vt = this.valueType.toUpperCase().charAt(0) + this.valueType.substring(1);
-			this.valueTypeEnum = ValueType.valueOf(vt);
-		} catch (Exception e) {
-			logger.error("Field {} has an invalid valueType={}. 'text' assumed.", this.name, this.valueType);
+		this.schemaInstance = schemas.get(this.valueSchema);
+		if (this.schemaInstance == null) {
+			logger.error("Field {} has specified {} as value-schema, but it is not defined. Text is assumed", this.name,
+					this.valueSchema);
+			this.valueSchema = "_text";
 			this.valueTypeEnum = ValueType.Text;
-		}
-
-		if (this.valueSchema != null) {
-			this.schemaInstance = schemas.get(this.valueSchema);
-			if (this.schemaInstance == null) {
-				logger.error("Field {} has specified {} as value-schema, but it is not defined. Ignored", this.name,
-						this.valueSchema);
-				this.valueSchema = null;
-			}
+		} else {
+			this.valueTypeEnum = this.schemaInstance.valueTypeEnum;
 		}
 
 		this.fieldTypeEnum = fieldTypes.get(this.fieldType.toLowerCase());
-		if (this.fieldTypeEnum == null)
-
-		{
+		if (this.fieldTypeEnum == null) {
 			logger.error("{} is an invalid fieldType for field {}. optional data is  assumed", this.fieldType,
 					this.name);
 			this.fieldType = "optionalData";
@@ -263,7 +253,7 @@ class Field implements Cloneable {
 			value = "''";
 			sbf.append(" CHARACTER VARYING NOT NULL DEFAULT ");
 			if (this.defaultValue != null) {
-				value = this.defaultValue.replaceAll("'", "''");
+				value = this.defaultValue.replace("'", "''");
 			}
 
 			sbf.append(value);

@@ -36,6 +36,11 @@ public enum FieldType {
 		}
 
 		@Override
+		public boolean isSetInternally() {
+			return false;
+		}
+
+		@Override
 		public boolean isInserted() {
 			return false;
 		}
