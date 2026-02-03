@@ -16,6 +16,21 @@
             <distribution>repo</distribution>
         </license>
     </licenses>
+    <scm>
+        <connection>scm:git:git://github.com/simplity/server.git</connection>
+        <developerConnection>scm:git:ssh://github.com:simplity/server.git</developerConnection>
+        <url>https://github.com/simplity/server/tree/main</url>
+    </scm>
+    
+    <developers>
+        <developer>
+            <name>Your Name</name>
+            <email>your.email@example.com</email>
+            <organization>Simplity</organization>
+            <organizationUrl>https://github.com/simplity</organizationUrl>
+        </developer>
+    </developers>    
+    
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <maven.compiler.source>21</maven.compiler.source>
@@ -101,6 +116,39 @@
                     </execution>
                 </executions>
             </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-javadoc-plugin</artifactId>
+                    <version>3.6.3</version>
+                    <executions>
+                        <execution>
+                            <id>attach-javadocs</id>
+                            <goals>
+                                <goal>jar</goal>
+                            </goals>
+                        </execution>
+                    </executions>
+                </plugin>
+            
+                <plugin>
+                    <groupId>org.jacoco</groupId>
+                    <artifactId>jacoco-maven-plugin</artifactId>
+                    <version>0.8.13</version>
+                    <executions>
+                        <execution>
+                            <goals>
+                                <goal>prepare-agent</goal>
+                            </goals>
+                        </execution>
+                        <execution>
+                            <id>report</id>
+                            <phase>test</phase>
+                            <goals>
+                                <goal>report</goal>
+                            </goals>
+                        </execution>
+                    </executions>
+                </plugin>
         </plugins>
     </build>
 
