@@ -299,10 +299,12 @@ public class Conventions {
 		/** */
 		public static final String STARTS_WITH = "^";
 		/** */
+		public static final String ENDS_WITH = "$";
+		/** */
 		public static final String BETWEEN = "><";
 
 		/** one of the entries in a list */
-		public static final String IN_LIST = "@";
+		public static final String ONE_OF = "@";
 		/**
 		 * translates to "is not null" in the database
 		 */
@@ -362,6 +364,10 @@ public class Conventions {
 		 * folder name under which sqls are defined
 		 */
 		public static final String FOLDER_NAME_SQL = "sql";
+		/**
+		 * folder name under which sqls are defined
+		 */
+		public static final String FOLDER_NAME_ENUMS = "enums";
 		/**
 		 * folder name under which classes related to list are generated
 		 */

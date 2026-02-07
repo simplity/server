@@ -35,6 +35,14 @@ public class ValueListMap {
 	}
 
 	/**
+	 *
+	 * @return value lists
+	 */
+	public Map<String, ValueList> getValueLists() {
+		return this.valueLists;
+	}
+
+	/**
 	 * generate Java classes for value lists
 	 *
 	 * @param rootFolder  root folder where package folders are created
@@ -42,8 +50,6 @@ public class ValueListMap {
 	 * @return true if all ok
 	 */
 	public boolean generateJava(final String rootFolder, final String packageName) {
-		final String pck = packageName + ".list";
-		final String folder = rootFolder + "list/";
 
 		/**
 		 * lists are created under list sub-package
@@ -53,7 +59,7 @@ public class ValueListMap {
 			return true;
 		}
 		for (final ValueList list : this.valueLists.values()) {
-			list.generateJava(folder, pck);
+			list.generateJava(rootFolder, packageName);
 		}
 		return true;
 	}

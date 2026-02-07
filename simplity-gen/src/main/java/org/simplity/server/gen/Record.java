@@ -18,6 +18,7 @@ import org.simplity.server.core.data.Dba;
 import org.simplity.server.core.data.FieldType;
 import org.simplity.server.core.data.IoType;
 import org.simplity.server.core.data.RecordMetaData;
+import org.simplity.server.core.filter.FilterBuilder;
 import org.simplity.server.core.service.InputData;
 import org.simplity.server.core.service.ServiceContext;
 import org.simplity.server.core.validn.DependentListValidation;
@@ -34,6 +35,11 @@ import org.slf4j.LoggerFactory;
  *
  */
 class Record {
+
+	private static final String FILTER_START = "\n\t/**\r\n"
+			+ "	 * @return builder to build filter params for AppUserRecord\r\n" + "	 */\r\n"
+			+ "	public FilterParamBuilder filterParams() {\r\n" + "		return new FilterParamBuilder();\r\n"
+			+ "	}\r\n" + "\r\n" + "	public static class FilterParamBuilder extends FilterBuilder {\r\n";
 	/*
 	 * this logger is used by all related classes of form to give the programmer the
 	 * right stream of logs to look for any issue in the workbook
@@ -77,7 +83,7 @@ class Record {
 	Field tenantField;
 	Field timestampField;
 	Field generatedKeyField;
-
+	boolean isFilterable;
 	private String className;
 	/*
 	 * got errors?
@@ -95,7 +101,8 @@ class Record {
 		return this.mainRecordName;
 	}
 
-	public void initExtendedRecord(Map<String, ValueSchema> schemas, Record mainRecord) {
+	public void initExtendedRecord(Map<String, ValueSchema> schemas, Map<String, ValueList> valueLists,
+			Record mainRecord) {
 
 		int nbrFieldsToCopy = mainRecord.fields.length; // assume all fields.
 		boolean allFields = true;
@@ -140,10 +147,10 @@ class Record {
 			}
 		}
 
-		this.init(schemas);
+		this.init(schemas, valueLists);
 	}
 
-	public void init(Map<String, ValueSchema> schemas) {
+	public void init(Map<String, ValueSchema> schemas, Map<String, ValueList> valueLists) {
 		this.className = Util.toClassName(this.name) + Conventions.App.RECORD_CLASS_SUFIX;
 		/*
 		 * we want to check for duplicate definition of standard fields
@@ -162,7 +169,7 @@ class Record {
 				continue;
 			}
 
-			field.init(idx, schemas);
+			field.init(idx, schemas, valueLists);
 			Field existing = this.fieldsMap.put(field.name, field);
 			if (existing != null) {
 				this.addError("Field {} is a duplicate in record {}", field.name, this.name);
@@ -336,6 +343,9 @@ class Record {
 				s = s.substring(0, 1).toUpperCase() + s.substring(1);
 				try {
 					IoType typ = IoType.valueOf(s);
+					if (typ == IoType.FILTER) {
+						this.isFilterable = true;
+					}
 					this.allowedIos.add(typ);
 				} catch (IllegalArgumentException e) {
 					this.addError("{} is not a valid db operation. Please correct operations array.", s);
@@ -394,6 +404,10 @@ class Record {
 		Util.emitImport(sbf, ServiceContext.class);
 		Util.emitImport(sbf, List.class);
 
+		if (this.isFilterable) {
+			sbf.append("\nimport ").append(FilterBuilder.class.getPackage().getName() + ".*;");
+			sbf.append("\nimport ").append(javaPackage).append(".enums.*;");
+		}
 		/*
 		 * validation imports on need basis
 		 */
@@ -453,6 +467,15 @@ class Record {
 		 * getters and setters
 		 */
 		Util.emitJavaGettersAndSetters(this.fields, sbf);
+		if (this.isFilterable) {
+			sbf.append("\n").append(FILTER_START);
+			for (Field field : this.fields) {
+				// if (field.filterable) {
+				field.emitJavaFilterCode(sbf);
+				// }
+			}
+			sbf.append("\n\t}\n");
+		}
 		sbf.append("\n}\n");
 
 		Util.writeOut(folderName + this.className + ".java", sbf.toString());

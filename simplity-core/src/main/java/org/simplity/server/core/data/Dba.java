@@ -1137,8 +1137,8 @@ public class Dba {
 				allOk = false;
 			}
 
-			boolean isNullCheck = operator == FilterOperator.HasNoValue || operator == FilterOperator.HasValue;
-			boolean isBetween = operator == FilterOperator.Between;
+			boolean isNullCheck = operator == FilterOperator.HAS_NO_VALUE || operator == FilterOperator.HAS_VALUE;
+			boolean isBetween = operator == FilterOperator.BETWEEN;
 
 			String value1 = f.value;
 			if (value1 == null) {
@@ -1183,7 +1183,7 @@ public class Dba {
 			}
 
 			String column2 = null;
-			if (operator == FilterOperator.Between) {
+			if (operator == FilterOperator.BETWEEN) {
 				column2 = parseField(value2, fields, vt, ctx);
 				if (column2 != null && column2.isEmpty()) {
 					allOk = false;
@@ -1219,7 +1219,7 @@ public class Dba {
 			 * complex ones first.. we have to append ? to sql, and add type and value to
 			 * the lists for each case
 			 */
-			if (operator == FilterOperator.Contains || operator == FilterOperator.StartsWith) {
+			if (operator == FilterOperator.CONTAINS || operator == FilterOperator.STARTS_WITH) {
 				if (vt != ValueType.Text) {
 					reportError("Condition " + operator + " is not valid for field " + fieldName
 							+ " which is of value type " + vt, ctx);
@@ -1236,7 +1236,7 @@ public class Dba {
 
 				sql.append(LIKE);
 				value1 = escapeLike(value1) + WILD_CARD;
-				if (operator == FilterOperator.Contains) {
+				if (operator == FilterOperator.CONTAINS) {
 					value1 = WILD_CARD + value1;
 				}
 				values.add(value1);
@@ -1244,7 +1244,7 @@ public class Dba {
 				continue;
 			}
 
-			if (operator == FilterOperator.In) {
+			if (operator == FilterOperator.ONE_OF) {
 				if (column1 != null) {
 					reportError(
 							"Operator " + operator.name() + " can not be used with a field as the second operand." + vt,
@@ -1319,12 +1319,12 @@ public class Dba {
 				continue;
 			}
 
-			if (operator == FilterOperator.HasValue) {
+			if (operator == FilterOperator.HAS_VALUE) {
 				sql.append(" IS NOT NULL ");
 				continue;
 			}
 
-			if (operator == FilterOperator.HasNoValue) {
+			if (operator == FilterOperator.HAS_NO_VALUE) {
 				sql.append(" IS NULL ");
 				continue;
 			}
