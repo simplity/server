@@ -20,6 +20,7 @@ public class ValueList implements Initializer {
 
 	private String name;
 	private String listType; // simple, keyed or runtime
+	private boolean generateEnum; // if true, we generate an enum in addition to the value list class
 	private Pair[] list; // in case it is a simple list
 	private Map<String, Pair[]> keys; // in case this is a keyed-list
 
@@ -47,26 +48,40 @@ public class ValueList implements Initializer {
 	}
 
 	/**
+	 *
+	 * @return true if enum is to be generated for this simple list
+	 */
+	public boolean generatesEnum() {
+		return this.generateEnum;
+	}
+
+	/**
 	 * generate the .java file for this list
 	 *
 	 * @param folder
-	 * @param packageName
+	 * @param basePackage
 	 */
-	public void generateJava(String folder, String packageName) {
+	public void generateJava(String folder, String basePackage) {
 		final StringBuilder sbf = new StringBuilder();
-		sbf.append("package ").append(packageName).append(';');
+		sbf.append("package ").append(basePackage).append(".list;");
 		sbf.append('\n');
 
 		String clsName = Util.toClassName(this.name);
 
 		if (this.listType.equals(LIST_SIMPLE)) {
+			if (this.generateEnum) {
+				StringBuilder b = new StringBuilder();
+				b.append("package ").append(basePackage).append(".enums;\n");
+				this.emitEnum(b, clsName);
+				Util.writeOut(folder + "enums/" + clsName + ".java", b.toString());
+			}
 			this.emitJavaSimple(sbf, clsName);
 		} else if (this.listType.equals(LIST_KEYED)) {
 			this.emitJavaKeyed(sbf, clsName);
 		} else {
 			this.emitJavaRuntime(sbf, clsName);
 		}
-		Util.writeOut(folder + clsName + ".java", sbf.toString());
+		Util.writeOut(folder + "list/" + clsName + ".java", sbf.toString());
 	}
 
 	private void emitJavaRuntime(StringBuilder sbf, final String clsName) {
@@ -215,11 +230,24 @@ public class ValueList implements Initializer {
 		vals.append("\n\t\t\t}");
 	}
 
+	private void emitEnum(StringBuilder sbf, final String clsName) {
+
+		sbf.append("\n\n/**\n * ").append(clsName).append("\n */");
+		sbf.append("\npublic enum ").append(clsName).append(" {");
+
+		for (final Pair p : this.list) {
+			sbf.append("\n\t/** ").append(p.label).append(" */");
+			sbf.append("\n\t").append(p.value.toString()).append(',');
+		}
+		sbf.setLength(sbf.length() - 1);
+		sbf.append("\n}\n");
+	}
+
 	private void emitJavaSimple(StringBuilder sbf, final String clsName) {
 		Util.emitImport(sbf, org.simplity.server.core.validn.SimpleValueList.class);
 
 		sbf.append("\n\n/**\n * ").append(clsName).append("\n */");
-		sbf.append("\n\npublic class ").append(Util.toClassName(this.name)).append(" extends SimpleValueList {");
+		sbf.append("\n\npublic class ").append(clsName).append(" extends SimpleValueList {");
 		sbf.append("\n\tprivate static final Object[][] VALUES = { ");
 
 		for (final Pair p : this.list) {

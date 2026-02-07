@@ -42,10 +42,16 @@ class Field implements Cloneable {
 	boolean visibleInList;
 	boolean visibleInSave;
 	String renderAs;
+	boolean filterable;
 
 	// synthetic attributes
 	boolean isRequired;
 	ValueSchema schemaInstance;
+	/**
+	 * if this field is associated with a simple list, we may have to use the
+	 * associated Enum for setters and getters instead of just string.
+	 */
+	String enumName = null;
 
 	int index;
 	FieldType fieldTypeEnum;
@@ -55,7 +61,7 @@ class Field implements Cloneable {
 
 	}
 
-	public void init(final int idx, Map<String, ValueSchema> schemas) {
+	public void init(final int idx, Map<String, ValueSchema> schemas, Map<String, ValueList> valueLists) {
 		this.index = idx;
 		this.schemaInstance = schemas.get(this.valueSchema);
 		if (this.schemaInstance == null) {
@@ -74,7 +80,26 @@ class Field implements Cloneable {
 			this.fieldType = "optionalData";
 			this.fieldTypeEnum = FieldType.OptionalData;
 		}
+
 		this.isRequired = this.fieldTypeEnum == FieldType.RequiredData || this.fieldTypeEnum == FieldType.PrimaryKey;
+
+		// validate list association and set generateEnum if required
+		if (this.listName != null) {
+			ValueList vl = valueLists.get(this.listName);
+			if (vl == null) {
+				logger.error("Field {} has specified {} as list name, but it is not defined. list is set to null",
+						this.name, this.listName);
+			} else if (vl.generatesEnum()) {
+
+				if (this.valueTypeEnum == ValueType.Text) {
+					this.enumName = Util.toClassName(this.listName);
+				} else {
+					logger.error(
+							"Field {} is of type {}, but it is associated with list {} that generates enum. Such lists can be associated only with text fields.",
+							this.name, this.valueTypeEnum.name(), this.listName);
+				}
+			}
+		}
 	}
 
 	/**
@@ -136,6 +161,40 @@ class Field implements Cloneable {
 			sbf.append(C).append(this.isRequired);
 		}
 		sbf.append(')');
+	}
+
+	void emitJavaFilterCode(StringBuilder sbf) {
+		String typ = "NonTextFilterField";
+		if (this.enumName != null) {
+			typ = "EnumFilterField<" + this.enumName + ">";
+		} else {
+			switch (this.valueTypeEnum) {
+			case Integer:
+				typ += "<Long>";
+				break;
+			case Decimal:
+				typ += "<Double>";
+				break;
+			case Boolean:
+				typ = "FilterField<Boolean>";
+				break;
+			case Date:
+				typ += "<LocalDate>";
+				break;
+			case Timestamp:
+				typ += "<Instant>";
+				break;
+			case Text:
+				typ = "TextFilterField";
+				break;
+			default:
+				// already set
+			}
+		}
+
+		sbf.append("\n\t\tpublic ").append(typ).append(' ').append(this.name).append("(){");
+		sbf.append("\n\t\t\treturn new ").append(typ).append("(this, \"").append(this.name).append("\");");
+		sbf.append("\n\t\t}\n");
 	}
 
 	/**

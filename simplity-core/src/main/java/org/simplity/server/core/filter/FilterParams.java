@@ -11,8 +11,12 @@ import org.slf4j.LoggerFactory;
 /**
  * Data structure with details that are received from the client for a filter
  * operations Also, this is the data structure used for configuring a report.
- * Not surprising because because the core of reporting is filtering data from a
- * a data source
+ * Not surprising because the core of reporting is filtering data from a a data
+ * source
+ *
+ * All fields are public at this time for easy access and population from JSON.
+ * A builder is also provided for good DX. This will be converted to an
+ * immutable object later
  */
 public class FilterParams {
 	private static final Logger logger = LoggerFactory.getLogger(FilterParams.class);
@@ -55,4 +59,27 @@ public class FilterParams {
 			return null;
 		}
 	}
+
+	/**
+	 * default constructor
+	 */
+	public FilterParams() {
+		// default constructor
+	}
+
+	/**
+	 * constructor with all fields
+	 *
+	 * @param maxRows maximum number of rows to be filtered.
+	 * @param fields  fields to be retrieved
+	 * @param filters filter conditions
+	 * @param sorts   sort details
+	 */
+	public FilterParams(int maxRows, String[] fields, FilterCondition[] filters, SortBy[] sorts) {
+		this.maxRows = maxRows;
+		this.fields = fields;
+		this.filters = filters;
+		this.sorts = sorts;
+	}
+
 }

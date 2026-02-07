@@ -610,7 +610,8 @@ public class Util {
 	static void emitJavaGettersAndSetters(final Field[] fields, final StringBuilder sbf) {
 		for (final Field f : fields) {
 
-			String typ = Util.JAVA_VALUE_TYPES[f.valueTypeEnum.ordinal()];
+			final boolean isEnum = f.enumName != null;
+			String typ = isEnum ? f.enumName : Util.JAVA_VALUE_TYPES[f.valueTypeEnum.ordinal()];
 			String get = Util.JAVA_GET_TYPES[f.valueTypeEnum.ordinal()];
 			final String nam = f.name;
 			final String cls = Util.toClassName(nam);
@@ -623,14 +624,26 @@ public class Util {
 				sbf.append("\n\t * @param value to be assigned to ").append(nam);
 				sbf.append("\n\t */");
 				sbf.append("\n\tpublic void set").append(cls).append('(').append(typ).append(" value){");
-				sbf.append("\n\t\tthis.fieldValues[").append(f.index).append("] = value;");
-				sbf.append("\n\t}");
+				sbf.append("\n\t\tthis.fieldValues[").append(f.index).append("] = value");
+				if (isEnum) { // get the name() of the enum
+					sbf.append(" == null ? \"\" : value.name()");
+				}
+				sbf.append(";\n\t}");
 			}
 
 			// of course we need getters for all fields
 			sbf.append("\n\n\t/**\n\t * @return value of ").append(nam).append("\n\t */");
 			sbf.append("\n\tpublic ").append(typ).append(" get").append(cls).append("(){");
-			sbf.append("\n\t\treturn super.fetch").append(get).append("Value(").append(f.index).append(");");
+			if (isEnum) {
+				sbf.append("\n\t\tString val = super.fetchStringValue(").append(f.index).append(");");
+				sbf.append("\n\t\tif (val != null && val.isEmpty()) {\n\t\t\treturn null;\n\t\t}");
+				sbf.append("\n\t\ttry {\n\t\t\treturn ").append(f.enumName)
+						.append(".valueOf(val);\n\t\t} catch (IllegalArgumentException e) {");
+				sbf.append("\n\t\t\treturn null;\n\t\t}");
+
+			} else {
+				sbf.append("\n\t\treturn super.fetch").append(get).append("Value(").append(f.index).append(");");
+			}
 			sbf.append("\n\t}");
 		}
 

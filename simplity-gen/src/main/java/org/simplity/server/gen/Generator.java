@@ -26,17 +26,13 @@ public class Generator {
 	 * folders to be created/ensured for java sources
 	 */
 	private static final String[] JAVA_FOLDERS = { Conventions.App.FOLDER_NAME_RECORD, Conventions.App.FOLDER_NAME_FORM,
-			Conventions.App.FOLDER_NAME_LIST, Conventions.App.FOLDER_NAME_SQL };
+			Conventions.App.FOLDER_NAME_LIST, Conventions.App.FOLDER_NAME_SQL, Conventions.App.FOLDER_NAME_ENUMS };
 
 	private static final String CREATE_SQL_COMMENT = "-- This file has the sql to create tables. It includes command to create primary keys.\n"
 			+ "-- It is intended to be included in a sql after the script that would delete tables.";
 	private static final String DATA_SQL_COMMENT = "-- This file has the template that can be used to create sql to add data to tables."
 			+ "\n-- Values clause has one row of empty/0/false values."
 			+ "\n-- we intend to introduce some syntax to generate this fiel WITH data in the future";
-
-	private static final String INPUT_ROOT = "c:/gitHub/wip/amr/amr-meta/meta/json/";
-	private static final String OUTPUT_ROOT = "c:/gitHub/wip/amr/arm-meta/amr-server-gen/src/main/";
-	private static final String PACKAGE_NAME = "in.nsoft.amr.gen";
 
 	// private static final String INPUT_ROOT =
 	// "c:/bitBucket/simeta/simeta-meta/meta/";
@@ -54,18 +50,8 @@ public class Generator {
 			generate(args[0], args[1], args[2]);
 			return;
 		}
-		final boolean ok = generate(INPUT_ROOT, OUTPUT_ROOT, PACKAGE_NAME);
-		if (ok) {
-			System.out.println("Source code generated");
-			return;
-		}
-		System.err.print("Errors found while generating sources. Please fix them and try again. ");
-		System.exit(1);
-		// System.err.println(
-		// "Usage : java Generator.class resourceRootFolder tsFormFolder\n or
-		// \n"
-		// + "Usage : java Generator.class resourceRootFolder
-		// generatedSourceRootFolder generatedPackageName tsOutputFolder");
+		System.err.println("Usage : java Generator.class resourceRootFolder tsFormFolder\n or\n"
+				+ "Usage : java Generator.class resourceRootFolder generatedSourceRootFolder generatedPackageName tsOutputFolder");
 	}
 
 	/**
@@ -408,7 +394,7 @@ public class Generator {
 				continue;
 			}
 
-			record.init(schemas);
+			record.init(schemas, this.valueLists.getValueLists());
 
 			this.records.put(record.name, record);
 		}
@@ -425,7 +411,7 @@ public class Generator {
 							subRecord.name, subRecord.mainRecordName);
 					continue;
 				}
-				subRecord.initExtendedRecord(schemas, record);
+				subRecord.initExtendedRecord(schemas, this.valueLists.getValueLists(), record);
 				this.records.put(subRecord.name, subRecord);
 			}
 		}

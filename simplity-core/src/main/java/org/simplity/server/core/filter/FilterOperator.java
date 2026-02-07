@@ -10,32 +10,34 @@ import org.simplity.server.core.Conventions;
  */
 public enum FilterOperator {
 	/** equal */
-	Equal(Conventions.Filter.EQ),
+	EQ(Conventions.Filter.EQ),
 	/** not equal */
-	NotEqual(Conventions.Filter.NE),
-	/** greater. remember it is greater and not "more" */
-	Greater(Conventions.Filter.GT),
-	/** greater or equal */
-	GreaterOrEqual(Conventions.Filter.GE),
-	/**
-	 * we prefer to call small rather than less because we say greater and not more
-	 * :-)
-	 */
-	Smaller(Conventions.Filter.LT),
-	/** we prefer to smaller to less than more :-) */
-	SmallerOrEqual(Conventions.Filter.LE),
-	/** like */
-	Contains(Conventions.Filter.CONTAINS),
-	/** starts with */
-	StartsWith(Conventions.Filter.STARTS_WITH),
-	/** between */
-	Between(Conventions.Filter.BETWEEN),
-	/** one in the list */
-	In(Conventions.Filter.IN_LIST),
+	NE(Conventions.Filter.NE),
 	/** translates to "is not null" in an RDBMS */
-	HasValue(Conventions.Filter.HAS_VALUE),
+	HAS_VALUE(Conventions.Filter.HAS_VALUE),
 	/** translates to "is null" in an RDBMS */
-	HasNoValue(Conventions.Filter.HAS_NO_VALUE);
+	HAS_NO_VALUE(Conventions.Filter.HAS_NO_VALUE),
+	/** greater */
+	GT(Conventions.Filter.GT),
+	/** greater or equal */
+	GE(Conventions.Filter.GE),
+	/**
+	 * less than / smaller than
+	 */
+	LT(Conventions.Filter.LT),
+	/** less-than/smaller-than or equals */
+	LE(Conventions.Filter.LE),
+	/** between */
+	BETWEEN(Conventions.Filter.BETWEEN),
+	/** one in the list */
+	ONE_OF(Conventions.Filter.ONE_OF),
+	// //// for text fields only
+	/** like */
+	CONTAINS(Conventions.Filter.CONTAINS),
+	/** starts with */
+	STARTS_WITH(Conventions.Filter.STARTS_WITH),
+	/** ends with */
+	ENDS_WITH(Conventions.Filter.ENDS_WITH);
 
 	private String textValue;
 
@@ -45,7 +47,7 @@ public enum FilterOperator {
 
 	/**
 	 * get the text value of this enumeration: like "=" for Equal
-	 * 
+	 *
 	 * @return text value of this enumeration: like "=" for Equal
 	 */
 	public String getText() {
@@ -59,8 +61,8 @@ public enum FilterOperator {
 	 * @return filter condition, or null if there is no filter for this text
 	 */
 	public static FilterOperator parse(String text) {
-		if (text == null || text.isEmpty() || text.equals(Equal.textValue)) {
-			return Equal;
+		if (text == null || text.isEmpty() || text.equals(EQ.textValue)) {
+			return EQ;
 		}
 		for (FilterOperator f : FilterOperator.values()) {
 			if (f.textValue.equals(text)) {
